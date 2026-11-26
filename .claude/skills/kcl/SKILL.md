@@ -197,16 +197,33 @@ plate = sketch(on = XY) {
   rightEnd = arc(start = [var 58mm, var -12mm], end = [var 58mm, var 12mm], center = [halfStraight, 0])
   // ...top, leftEnd...
   coincident([bottom.end, rightEnd.start])   // join segments
-  tangent([bottom, rightEnd])                // smooth join
+  vertical([bottom.end, rightEnd.center])    // point straight below the centre
   radius(rightEnd) == halfWidth              // a variable on the right works
 }
 ```
 
+- **Check the constraint status after every sketch edit.** `evaluate_kcl`
+  reports it, or call `get_sketch_constraint_status(kcl_path=...)` alone.
+  `visualize_sketch(sketch_name, kcl_path=...)` draws the sketch with free
+  geometry in blue and fully constrained geometry in white. Aim for every
+  sketch fully constrained, and tell the user about any that aren't.
+- **`tangent()` leaves a sketch under-constrained.** A stadium outline
+  using `coincident` + `tangent` + `radius` drew the right shape, but the
+  solver reported all four segments as free. It stayed free even with the
+  arc centres pinned by `coincident`. Replacing each `tangent` with
+  `vertical([line.end, arc.center])` made it fully constrained, with an
+  identical result. The general fix: pin where a tangent point sits
+  (`vertical` or `horizontal` against the arc centre), not the tangency
+  itself.
+- **`horizontal` and `vertical` take a segment or a list of points,**
+  including `arc.center`, `line.start` and `line.end`, and `ORIGIN`.
 - **`var` takes a literal with a unit,** e.g. `var -58mm`, never an
-  expression. It's only a starting guess, so after a big parameter change,
-  update the guesses to roughly match.
-- **Don't add redundant constraints.** For example, a line tangent to two
-  equal arcs whose centres are level is already horizontal, so adding
+  expression. It's only a starting guess. Changing the plate from 140 to
+  180 mm long still solved correctly from the old guesses, but if a big
+  change makes the solver land on the wrong shape, update the guesses.
+- **Don't add redundant constraints.** If the existing constraints already
+  imply something (e.g. a line between two points that are each directly
+  below an arc centre at the same height is already horizontal), adding
   `horizontal()` as well risks an over-constrained error.
 
 ## Solids, booleans and placement (all confirmed)

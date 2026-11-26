@@ -73,12 +73,13 @@ plateProfile = sketch(on = XY) {
   coincident([top.end, leftEnd.start])
   coincident([leftEnd.end, bottom.start])
 
-  // Make the corners smooth. Each straight edge is tangent to both arcs,
-  // so it ends up horizontal without a separate horizontal() constraint.
-  tangent([bottom, rightEnd])
-  tangent([rightEnd, top])
-  tangent([top, leftEnd])
-  tangent([leftEnd, bottom])
+  // Put each corner point directly below or above its arc centre. With the
+  // radius set, that places every point exactly, and the straight edges
+  // come out horizontal and meet the arcs smoothly (tangent).
+  vertical([bottom.end, rightEnd.center])
+  vertical([top.start, rightEnd.center])
+  vertical([top.end, leftEnd.center])
+  vertical([bottom.start, leftEnd.center])
 
   // Set the size of each end
   radius(rightEnd) == halfWidth
