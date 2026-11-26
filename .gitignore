@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+._*
+
+# Zoo Design Studio regenerates a thumbnail for each project
+thumbnail.png
+
+# Claude Code personal settings (shared settings and skills stay tracked)
+.claude/settings.local.json
+
+# Python caches from the skill's helper scripts
+__pycache__/
+*.pyc
+
+# Editors
+.vscode/
+.idea/
+*.swp
