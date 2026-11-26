@@ -1,0 +1,167 @@
+// Slotted frame hanger – anchor plate
+//
+// A flat plate that screws to the wall (back face at Z = 0) through two
+// vertical slots, with two wedge-shaped hooks on the front. A frame with a
+// slot slides down over the ramps and catches behind the lip that
+// overhangs the bottom edge.
+//
+// Coordinates: X = along the plate, Y = up the wall, Z = out of the wall.
+// The part is centred on the origin, and all dimensions are in millimetres.
+// The plate length and hook shape were measured from
+// slotted-frame-hanger_Anchor.stl.
+//
+// Sketches use KCL's sketch blocks: sketch(on = PLANE) { ... }.
+// Each segment is drawn with absolute start/end points. The points are
+// computed from the parameters below, so they are fixed (no `var`), and
+// changing a parameter redraws the sketch.
+
+@settings(defaultLengthUnit = mm, kclVersion = 3.0)
+
+// ---------- Parameters (change these) ----------
+
+// Screw slots: straight-walled and vertical (along Y), so the plate can
+// slide up or down on the screws to level it
+slotSpacing = 50 // centre-to-centre along the plate
+slotLength = 10 // overall length, end to end
+slotWidth = 4 // fits the screw shank
+slotEdgeMargin = 7 // solid material between each slot end and the plate edge
+
+
+// Plate
+plateLength = 140
+plateWidth = slotLength + 2 * slotEdgeMargin // 24 mm; grows with the slots
+plateThickness = 5
+
+// Hooks
+hookSpacing = 100 // centre-to-centre
+hookWidth = 20 // measured along X
+hookOverhang = 4 // how far the lip sticks out past the bottom edge
+hookHeight = 4 // lip height above the plate face
+hookTopLength = 10 // flat top of the lip
+hookRampLength = 13.5 // length of the sloped lead-in
+
+
+// ---------- Derived values ----------
+halfStraight = (plateLength - plateWidth) / 2 // where the straight edges end
+halfWidth = plateWidth / 2
+t = plateThickness
+hookStartY = -halfWidth - hookOverhang
+hookTopEndY = hookStartY + hookTopLength
+hookEndY = hookTopEndY + hookRampLength
+overlap = 1 // hooks sink this far into the plate so the union is solid
+slotR = slotWidth / 2 // radius of the rounded slot ends
+slotHalfStraight = (slotLength - slotWidth) / 2 // where the straight sides end
+
+
+// ---------- Plate ----------
+// A stadium (obround) outline on the XY plane: two straight lines joined
+// by two half circles, going counterclockwise.
+//
+// This sketch uses the constraint solver. Points marked `var` are only
+// starting guesses: the solver moves them until every constraint below
+// is satisfied. The two arc centres are fixed points worked out from the
+// parameters, and they hold the shape in place.
+plateProfile = sketch(on = XY) {
+  bottom = line(start = [var -58mm, var -12mm], end = [var 58mm, var -12mm])
+  rightEnd = arc(start = [var 58mm, var -12mm], end = [var 58mm, var 12mm], center = [halfStraight, 0])
+  top = line(start = [var 58mm, var 12mm], end = [var -58mm, var 12mm])
+  leftEnd = arc(start = [var -58mm, var 12mm], end = [var -58mm, var -12mm], center = [-halfStraight, 0])
+
+  // Join the segments end to start, so the outline is a closed loop
+  coincident([bottom.end, rightEnd.start])
+  coincident([rightEnd.end, top.start])
+  coincident([top.end, leftEnd.start])
+  coincident([leftEnd.end, bottom.start])
+
+  // Make the corners smooth. Each straight edge is tangent to both arcs,
+  // so it ends up horizontal without a separate horizontal() constraint.
+  tangent([bottom, rightEnd])
+  tangent([rightEnd, top])
+  tangent([top, leftEnd])
+  tangent([leftEnd, bottom])
+
+  // Set the size of each end
+  radius(rightEnd) == halfWidth
+  radius(leftEnd) == halfWidth
+}
+
+plateBody = extrude(
+  region(segments = [
+    plateProfile.bottom,
+    plateProfile.rightEnd
+  ]),
+  length = t,
+)
+
+// ---------- Hooks ----------
+// Side profile on the YZ plane (sketch x = global Y, sketch y = global Z),
+// extruded along X. Counterclockwise, starting at the front-bottom corner
+// of the lip.
+hookProfile = sketch(on = YZ) {
+  lipUnderside = line(start = [hookStartY, t], end = [-halfWidth, t])
+  plateEdge = line(start = [-halfWidth, t], end = [-halfWidth, t - overlap])
+  buried = line(start = [-halfWidth, t - overlap], end = [hookEndY, t - overlap])
+  rampEnd = line(start = [hookEndY, t - overlap], end = [hookEndY, t])
+  ramp = line(start = [hookEndY, t], end = [hookTopEndY, t + hookHeight])
+  lipTop = line(start = [hookTopEndY, t + hookHeight], end = [hookStartY, t + hookHeight])
+  lipFront = line(start = [hookStartY, t + hookHeight], end = [hookStartY, t])
+}
+
+// A region can only be used once, so each hook gets its own region()
+// built from the same sketch.
+hookLeft = extrude(
+  region(segments = [
+    hookProfile.lipUnderside,
+    hookProfile.plateEdge
+  ]),
+  length = hookWidth,
+  symmetric = true,
+)
+  |> translate(x = -hookSpacing / 2)
+
+hookRight = extrude(
+  region(segments = [
+    hookProfile.lipUnderside,
+    hookProfile.plateEdge
+  ]),
+  length = hookWidth,
+  symmetric = true,
+)
+  |> translate(x = hookSpacing / 2)
+
+// ---------- Screw slot cutters ----------
+// A vertical stadium outline on the XY plane, centred on the origin:
+// two straight sides joined by two half circles, going counterclockwise.
+// It's extruded symmetrically to 3× the plate thickness, so it pokes out
+// of both faces and cuts cleanly through with straight walls.
+slotProfile = sketch(on = XY) {
+  rightSide = line(start = [slotR, -slotHalfStraight], end = [slotR, slotHalfStraight])
+  topEnd = arc(start = [slotR, slotHalfStraight], end = [-slotR, slotHalfStraight], center = [0, slotHalfStraight])
+  leftSide = line(start = [-slotR, slotHalfStraight], end = [-slotR, -slotHalfStraight])
+  bottomEnd = arc(start = [-slotR, -slotHalfStraight], end = [slotR, -slotHalfStraight], center = [0, -slotHalfStraight])
+}
+
+slotLeft = extrude(
+  region(segments = [
+    slotProfile.rightSide,
+    slotProfile.topEnd
+  ]),
+  length = 3 * t,
+  symmetric = true,
+)
+  |> translate(x = -slotSpacing / 2)
+
+slotRight = extrude(
+  region(segments = [
+    slotProfile.rightSide,
+    slotProfile.topEnd
+  ]),
+  length = 3 * t,
+  symmetric = true,
+)
+  |> translate(x = slotSpacing / 2)
+
+// ---------- Assemble ----------
+body = union([plateBody, hookLeft, hookRight])
+
+anchor = subtract([body], tools = [slotLeft, slotRight])

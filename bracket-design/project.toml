@@ -1,0 +1,8 @@
+title = "bracket design"
+default_file = "main.kcl"
+
+[settings.meta]
+id = "33734bb0-73eb-433b-8515-9b8d069bb51a"
+
+[zookeeper."zoo.dev"]
+conversation_ids = [ "2ed199c2-31e0-4f81-8c3e-cebc99332add" ]
