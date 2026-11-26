@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Prepares an Amp orb for KCL work: the zoo CLI, the zoo MCP server and the
+# Python packages the kcl skill uses for STL slicing. Safe to rerun.
+# Zoo logins are per user, so this script never authenticates. Set
+# ZOO_API_TOKEN as a project secret, or run `zoo auth login` in the orb.
+set -euo pipefail
+
+ZOO_CLI_VERSION=v0.2.213 # the version the kcl skill was verified against
+
+step() {
+  local name=$1
+  shift
+  local start=$SECONDS
+  echo "==> $name"
+  "$@"
+  echo "    $name took $((SECONDS - start))s"
+}
+
+install_zoo_cli() {
+  local bin="$HOME/.local/bin/zoo"
+  if [[ -x "$bin" ]] && "$bin" --version 2>/dev/null | grep -qF "${ZOO_CLI_VERSION#v}"; then
+    echo "    zoo $ZOO_CLI_VERSION already installed"
+    return
+  fi
+  local asset
+  case "$(uname -m)" in
+    x86_64) asset=zoo-x86_64-unknown-linux-musl ;;
+    aarch64 | arm64) asset=zoo-aarch64-unknown-linux-musl ;;
+    *) echo "unsupported architecture: $(uname -m)" >&2; return 1 ;;
+  esac
+  local url="https://github.com/KittyCAD/cli/releases/download/$ZOO_CLI_VERSION/$asset"
+  local tmp
+  tmp=$(mktemp -d)
+  curl -fsSL --retry 3 -o "$tmp/$asset" "$url"
+  curl -fsSL --retry 3 -o "$tmp/$asset.sha256" "$url.sha256"
+  (cd "$tmp" && echo "$(awk '{print $1}' "$asset.sha256")  $asset" | sha256sum -c --quiet)
+  mkdir -p "$(dirname "$bin")"
+  install -m 0755 "$tmp/$asset" "$bin"
+  rm -rf "$tmp"
+  "$bin" --version
+}
+
+# uvx caches the server, so the first MCP start in a thread needs no download.
+warm_zoo_mcp() {
+  uvx zoo-mcp --help >/dev/null
+}
+
+# Matches the skill's `uv run -q --with numpy --with matplotlib python -I ...`.
+warm_plotting_env() {
+  uv run -q --no-project --with numpy --with matplotlib python -I -c 'import numpy, matplotlib'
+}
+
+step "zoo CLI $ZOO_CLI_VERSION" install_zoo_cli
+step "zoo-mcp cache" warm_zoo_mcp
+step "numpy + matplotlib cache" warm_plotting_env

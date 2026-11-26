@@ -12,6 +12,9 @@ thumbnail.png
 __pycache__/
 *.pyc
 
+# Amp orb portal files, written per orb
+.amp/portals/*
+
 # Editors
 .vscode/
 .idea/
