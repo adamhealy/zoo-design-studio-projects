@@ -1,6 +1,6 @@
 ---
 name: kcl
-description: Write, edit, check and render KCL (Zoo's CAD language) models for Zoo Design Studio, using the zoo MCP server's tools (mcp__zoo__*) or the `zoo` CLI to format, lint, run, snapshot, measure and export them. Use whenever a task touches a .kcl file or project.toml, asks to model, redesign or modify a CAD part in KCL, converts or measures an STL or other mesh, or mentions Zoo Design Studio, KittyCAD, the zoo MCP or the zoo CLI.
+description: Write, edit, check and render KCL (Zoo's CAD language) models for Zoo Design Studio, using the zoo MCP server's tools or the `zoo` CLI to format, lint, run, snapshot, measure and export them. Use whenever a task touches a .kcl file or project.toml, asks to model, redesign or modify a CAD part in KCL, converts or measures an STL or other mesh, or mentions Zoo Design Studio, KittyCAD, the zoo MCP or the zoo CLI.
 ---
 
 # KCL modelling with Zoo
@@ -16,21 +16,30 @@ This skill lives at the root of the `zoo-design-studio-projects` repo and
 applies to every project in it. Each project is its own folder (e.g.
 `bracket-design/`) holding a `main.kcl` and `project.toml`. Work out which
 project the task is about first. Then run CLI commands from inside that
-folder, and give the MCP tools absolute paths. The helper script is at
-`.claude/skills/kcl/scripts/measure_stl.py` from the repo root.
+folder, and give the MCP tools absolute paths. The helper script is
+`scripts/measure_stl.py` in this skill's directory
+(`.agents/skills/kcl/scripts/measure_stl.py` from the repo root).
+
+**Scratch directory:** snapshots, exports and throwaway scripts go in a
+temporary directory outside the project, never in the project folder. Use
+the scratch or temp directory your environment provides, or make one with
+`mktemp -d`. `<scratch>` below means that directory.
 
 ## Prefer the zoo MCP, fall back to the CLI
 
-When `mcp__zoo__*` tools are in the session, use them for checking, rendering,
-measuring and docs lookup. They return structured results and images
-directly, with no PNG files to Read. The tools are deferred, so load the ones
-you need in one call first, e.g.
-`ToolSearch("select:mcp__zoo__format_kcl,mcp__zoo__lint_and_fix_kcl,mcp__zoo__mock_execute_kcl,mcp__zoo__evaluate_kcl,mcp__zoo__calculate_cad_physical_properties")`.
+When the zoo MCP server's tools are available, use them for checking,
+rendering, measuring and docs lookup. They return structured results and
+images directly, with no PNG files to open. This skill uses the tools' bare
+names (`format_kcl`, `evaluate_kcl`, ...); your environment may show them
+with a server prefix, such as `mcp__zoo__evaluate_kcl` or `zoo.evaluate_kcl`.
+If your environment loads MCP tools on demand, load the ones you need in one
+go first: `format_kcl`, `lint_and_fix_kcl`, `mock_execute_kcl`,
+`evaluate_kcl` and `calculate_cad_physical_properties`.
 If the zoo server isn't connected, use the CLI workflow further down.
 
-Always save the KCL to disk with Edit/Write first, then pass `kcl_path`
-(absolute path to `main.kcl` or the project folder). Passing `kcl_code`
-runs the code without saving it anywhere.
+Always save the KCL to disk with your file-editing tool first, then pass
+`kcl_path` (absolute path to `main.kcl` or the project folder). Passing
+`kcl_code` runs the code without saving it anywhere.
 
 ### MCP workflow: check every edit
 
@@ -53,7 +62,7 @@ runs the code without saving it anywhere.
      kcl_path = "<abs>/main.kcl",
      physical_properties_request = {"properties": ["volume"], "unit_volume": "mm3"},
      snapshot_request = {"views": ["isometric", "front", "top", "right"]},
-     exports = [{"format": "stl", "destination_dir": "<scratchpad>/export-N"}],
+     exports = [{"format": "stl", "destination_dir": "<scratch>/export-N"}],
    )
    ```
 
@@ -62,7 +71,7 @@ runs the code without saving it anywhere.
    - It also reports each sketch as fully, under or over constrained, with
      free and conflict counts. Mention any under or over constrained
      sketches to the user.
-   - Each export format needs its own new folder (use the scratchpad).
+   - Each export format needs its own new folder under `<scratch>`.
      Existing files aren't overwritten, so use a fresh folder each run.
    - **Don't trust its `bounding_box`.** It has the same bug as the CLI
      (168 × 32.75 × 10 mm for a part that is 140 × 28 × 9 mm).
@@ -130,11 +139,12 @@ Steps 3–5 send the model to Zoo's servers and need `zoo auth login`
    This catches errors that only show up when the model runs, e.g.
    "KCL execution failed: undefined value: `x` is not defined". The volume
    it reports is accurate, so compare it with a hand estimate.
-4. **Look at it:** `zoo kcl snapshot main.kcl <scratchpad>/iso.png --angle iso`,
-   then Read the PNG. Other angles are `front`, `top`, `right-side` and
-   `four-ways`. Save snapshots in the scratchpad, not the project.
-5. **Measure it:** `zoo kcl export main.kcl <scratchpad>/export --output-format stl`,
-   then `python3 -I <repo root>/.claude/skills/kcl/scripts/measure_stl.py <scratchpad>/export/output.stl`.
+4. **Look at it:** `zoo kcl snapshot main.kcl <scratch>/iso.png --angle iso`,
+   then open the PNG with your image-viewing tool. Other angles are
+   `front`, `top`, `right-side` and `four-ways`. Save snapshots in
+   `<scratch>`, not the project.
+5. **Measure it:** `zoo kcl export main.kcl <scratch>/export --output-format stl`,
+   then `python3 -I <repo root>/.agents/skills/kcl/scripts/measure_stl.py <scratch>/export/output.stl`.
    That prints the true size and volume.
    - **Don't trust `zoo kcl bounding-box`.** For a part that measured
      140 × 28 × 9 mm in the export, it reported 168 × 32.75 × 10 mm.
@@ -157,12 +167,12 @@ matching STL.
 
 1. **Export from the saved file** after the last edit passes every check.
    Both `evaluate_kcl` and `zoo kcl export` write `output.stl` into a new
-   scratchpad folder, and `evaluate_kcl` won't overwrite an existing file.
+   folder under `<scratch>`, and `evaluate_kcl` won't overwrite an existing file.
    Zoo writes ASCII STL in mm, the same format as the tracked files.
 2. **Measure it** with `measure_stl.py` or the MCP measuring tools, and
    check the size and volume match the parameters.
 3. **Copy it over the tracked STL:**
-   `cp <scratchpad>/<export dir>/output.stl <project>/<project>.stl`.
+   `cp <scratch>/<export dir>/output.stl <project>/<project>.stl`.
 4. **Check git sees the change you expect.** Use
    `cmp -s <new> <old>` or `git status`. A change that doesn't move any
    geometry, such as swapping constraints, gives a byte-identical STL
@@ -288,9 +298,9 @@ part = subtract([body], tools = [cutA, cutB])
 - **Get the targets first.** Run `calculate_cad_physical_properties` (MCP)
   or `measure_stl.py` on the original STL to get the size and volume the
   KCL model must match.
-- **Read it with a script.** Binary STLs are too big to Read directly, so
+- **Read it with a script.** Binary STLs are too big to open directly, so
   parse them with `struct` in a script run with `python3 -I` and keep
-  the script in the scratchpad.
+  the script in `<scratch>`.
 - **Find the layers.** List the distinct Z levels and face normals.
 - **Slice it.** Take sections at several Z heights, plus YZ/XZ sections
   through each feature, and plot them with matplotlib via `uv run`.
@@ -306,4 +316,4 @@ part = subtract([body], tools = [cutA, cutB])
 - Standard library reference: https://zoo.dev/docs/kcl-std (e.g. `functions/std-sketch-region`, `std-solver-arc`, `std-sketch-revolve`, `std-solid-subtract`)
 - CLI manual: https://zoo.dev/docs/developer-tools/cli/manual
 - Example models: https://zoo.dev/docs/kcl-samples and https://zoo.dev/aquarium
-- zoo MCP server (installed as `zoo`, tools `mcp__zoo__*`): https://github.com/KittyCAD/zoo-mcp
+- zoo MCP server (register it under the name `zoo`): https://github.com/KittyCAD/mcp

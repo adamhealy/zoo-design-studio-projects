@@ -12,14 +12,17 @@ bracket-design/
   bracket-design.stl  STL exported from main.kcl
 ```
 
-The repo also includes a [Claude Code](https://claude.com/claude-code) skill
-at [.claude/skills/kcl](.claude/skills/kcl/SKILL.md). It teaches Claude how to
-write, check, render and export KCL with the tools below.
+The repo also includes an [Agent Skill](https://agentskills.io) at
+[.agents/skills/kcl](.agents/skills/kcl/SKILL.md). It teaches a coding agent
+how to write, check, render and export KCL with the tools below. Agents that
+read `.agents/skills/` (such as Amp, Codex, Cursor and OpenCode) pick it up
+directly; `.claude/skills/kcl` is a symlink to the same folder for Claude
+Code. Edit the files under `.agents/skills/kcl`.
 
 ## Setup
 
 You need three things: Design Studio to view and edit models, the `zoo` CLI
-for command-line checks and exports, and the zoo MCP server so Claude can
+for command-line checks and exports, and the zoo MCP server so your agent can
 run models directly. The CLI and MCP server are optional if you only use
 Design Studio.
 
@@ -73,8 +76,8 @@ to Zoo's servers, so they need this login. `zoo kcl format` and
 
 ### 3. The zoo MCP server
 
-[zoo-mcp](https://github.com/KittyCAD/mcp) is an MCP server that lets Claude
-run KCL, render snapshots, measure and export models, and look up the KCL
+[zoo-mcp](https://github.com/KittyCAD/mcp) is an MCP server that lets an
+agent run KCL, render snapshots, measure and export models, and look up the KCL
 docs and samples.
 
 1. **Install uv**, which runs the server. On macOS:
@@ -102,26 +105,31 @@ docs and samples.
    also skip the login and set the `ZOO_API_TOKEN` environment variable to
    an API key from https://zoo.dev/account.
 
-3. **Add it to Claude Code** for all your projects:
+3. **Add it to your agent** as a stdio MCP server named `zoo` that runs
+   `uvx zoo-mcp`. For example, in Claude Code:
 
    ```bash
    claude mcp add --scope user zoo -- uvx zoo-mcp
    ```
 
-   Name it `zoo`: the kcl skill refers to its tools as `mcp__zoo__*`.
+   Most other agents take the same command in their MCP config, e.g.
+   `{"zoo": {"command": "uvx", "args": ["zoo-mcp"]}}`. Naming it `zoo`
+   keeps the tool names short; the skill refers to them by their bare names
+   (`evaluate_kcl`, ...).
 
-4. **Check it's connected.** Run `claude mcp list` and look for `zoo`, or
-   start Claude Code in this repo and ask it to test the zoo MCP.
+4. **Check it's connected.** List your agent's MCP servers (e.g.
+   `claude mcp list`) and look for `zoo`, or start the agent in this repo
+   and ask it to test the zoo MCP.
 
-For other clients (Claude Desktop, Codex, MCP Inspector), prebuilt binaries
-and the full list of environment variables, see the
+For prebuilt binaries, client-specific setup and the full list of
+environment variables, see the
 [zoo-mcp README](https://github.com/KittyCAD/mcp).
 
-## Working with Claude Code
+## Working with an agent
 
-Start Claude Code from the root of this repo so it loads the kcl skill. When
-you ask for a change to a model, Claude edits `main.kcl` and checks it with
-the zoo MCP (or the CLI if the MCP isn't connected). The checks are format,
-lint, run, render, constraint status and measurements. Claude then
+Start your agent from the root of this repo so it finds the kcl skill. When
+you ask for a change to a model, the agent edits `main.kcl` and checks it
+with the zoo MCP (or the CLI if the MCP isn't connected). The checks are
+format, lint, run, render, constraint status and measurements. It then
 re-exports the project's STL so it matches the model. Open the project in
 Design Studio to review the result.
