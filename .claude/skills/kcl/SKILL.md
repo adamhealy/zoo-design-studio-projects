@@ -71,6 +71,9 @@ runs the code without saving it anywhere.
    the true size (confirmed against `measure_stl.py`), plus volume, mass,
    surface area and centre of mass. Mass needs a density, e.g. 2700 kg:m3
    for aluminium or 1240 kg:m3 for PLA.
+6. **Update the project's STL** once the checks pass: copy the STL that
+   step 4 exported over the project's tracked STL. See "Finish: update the
+   STL and commit" below.
 
 ### MCP: inspecting a model interactively
 
@@ -138,9 +141,36 @@ Steps 3–5 send the model to Zoo's servers and need `zoo auth login`
      Use the export instead.
    - To check a cross-section, slice the exported STL with numpy and
      matplotlib through `uv run -q --with numpy --with matplotlib python -I script.py`.
+6. **Update the project's STL** once the checks pass: copy the STL that
+   step 5 exported over the project's tracked STL. See "Finish: update the
+   STL and commit" below.
 
 Before reporting dimensions, re-read the parameters in the file. The user
 edits them in Design Studio between turns.
+
+## Finish: update the STL and commit
+
+Each project keeps an STL of its current model in git, named after the
+project folder (e.g. `bracket-design/bracket-design.stl`). Keep it in step
+with `main.kcl`, so every commit that changes the model also carries the
+matching STL.
+
+1. **Export from the saved file** after the last edit passes every check.
+   Both `evaluate_kcl` and `zoo kcl export` write `output.stl` into a new
+   scratchpad folder, and `evaluate_kcl` won't overwrite an existing file.
+   Zoo writes ASCII STL in mm, the same format as the tracked files.
+2. **Measure it** with `measure_stl.py` or the MCP measuring tools, and
+   check the size and volume match the parameters.
+3. **Copy it over the tracked STL:**
+   `cp <scratchpad>/<export dir>/output.stl <project>/<project>.stl`.
+4. **Check git sees the change you expect.** Use
+   `cmp -s <new> <old>` or `git status`. A change that doesn't move any
+   geometry, such as swapping constraints, gives a byte-identical STL
+   (confirmed), so there's nothing new to commit. Say so rather than
+   leaving it out silently.
+5. **Commit the STL together with the .kcl change** it came from, when the
+   user asks for a commit. Don't make a separate STL-only commit for a
+   model change.
 
 ## File header
 
